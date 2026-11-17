@@ -1,0 +1,3 @@
+SMOKE TEST PASSED
+Command: python smoke_test.py --output smoke_test_outputs
+Tiny software check only (2 Adam epochs, 2 L-BFGS-B iterations); not a scientific benchmark.
