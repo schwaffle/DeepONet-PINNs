@@ -135,7 +135,9 @@ def generate_datasets(out_dir: str | Path, seed: int = 7,
 
     lf_feature_coords = make_lf_feature_coords(nxy=11, T=cfg.T)
     lf_sub_idx = make_lf_sub_indices(nxy=11, ntime=4)
-    npz_path = out / f"exp1_multifidelity_seed_{seed}.npz"
+    # Include LF scheme in the filename. Otherwise a previous Central/Central
+    # dataset could silently be reused when the user requests LF-Upwind/HF-Central.
+    npz_path = out / f"exp1_multifidelity_seed_{seed}_lf_{lf_scheme}_hf_central.npz"
     np.savez_compressed(
         npz_path, **arrays,
         obs_coords=obs_coords, obs_values=obs_values,
@@ -148,6 +150,52 @@ def generate_datasets(out_dir: str | Path, seed: int = 7,
         sensor_xy=sensor_xy, lf_feature_coords=lf_feature_coords,
         lf_sub_idx=lf_sub_idx, param_bounds=PARAM_BOUNDS.astype(np.float32),
     )
+    dx_lf = 1.0 / (cfg.n_lf - 1)
+    dx_hf = 1.0 / (cfg.n_hf - 1)
+
+    # Diagnostic-only target LF solves. They are NOT appended to LF operator
+    # train/validation data and are never passed to train.py. They quantify the
+    # fidelity gap and the same-grid scheme effect for the held-out inverse target.
+    target_lf = solve(cfg.theta_true, cfg.n_lf, lf_scheme, cfg)
+    target_lf_central = (target_lf if lf_scheme == "central"
+                         else solve(cfg.theta_true, cfg.n_lf, "central", cfg))
+    tx, ty = np.meshgrid(target_lf[1], target_lf[2], indexing="ij")
+    lf_diag_coords = np.asarray(
+        [(x, y, t) for t in target_lf[0] for x in target_lf[1] for y in target_lf[2]],
+        dtype=np.float32)
+    hf_at_lf = interpolate_trajectory(hf, lf_diag_coords).reshape(len(target_lf[0]), cfg.n_lf, cfg.n_lf)
+    target_lf_err = target_lf[3] - hf_at_lf
+    target_lf_hf_gap = {
+        "MAE_on_LF_grid": float(np.mean(np.abs(target_lf_err))),
+        "relative_L2_on_LF_grid": float(np.linalg.norm(target_lf_err)/(np.linalg.norm(hf_at_lf)+1e-15)),
+        "note": "Diagnostic-only target solve; not included in LF operator training or validation."
+    }
+    central_lf_coords = np.asarray(
+        [(x, y, t) for t in target_lf_central[0]
+         for x in target_lf_central[1] for y in target_lf_central[2]], dtype=np.float32)
+    central_lf_vs_hf = interpolate_trajectory(hf, central_lf_coords).reshape(
+        len(target_lf_central[0]), cfg.n_lf, cfg.n_lf)
+    central_lf_err = target_lf_central[3] - central_lf_vs_hf
+    central_lf_hf_gap = {
+        "MAE_on_LF_grid": float(np.mean(np.abs(central_lf_err))),
+        "relative_L2_on_LF_grid": float(np.linalg.norm(central_lf_err)/(np.linalg.norm(central_lf_vs_hf)+1e-15)),
+        "note": "Diagnostic-only Central 21x21 vs HF Central 129x129 resolution-control gap; not used in training."
+    }
+
+    same_grid_scheme_gap = None
+    if lf_scheme == "upwind":
+        central_at_upwind_times = interpolate_trajectory(
+            target_lf_central,
+            np.asarray([(x, y, t) for t in target_lf[0]
+                        for x in target_lf[1] for y in target_lf[2]], dtype=np.float32)
+        ).reshape(len(target_lf[0]), cfg.n_lf, cfg.n_lf)
+        scheme_err = target_lf[3] - central_at_upwind_times
+        same_grid_scheme_gap = {
+            "MAE_same_21x21_grid": float(np.mean(np.abs(scheme_err))),
+            "relative_L2_same_21x21_grid": float(np.linalg.norm(scheme_err)/(np.linalg.norm(central_at_upwind_times)+1e-15)),
+            "note": "Diagnostic-only comparison of Upwind and Central advection on identical 21x21 nodes; not used in training."
+        }
+
     metadata = {
         "experiment": "Exp. 1: multi-fidelity source identification, 2-D advection-diffusion",
         "seed": seed, "theta_true": list(cfg.theta_true), "param_bounds": PARAM_BOUNDS.tolist(),
@@ -170,7 +218,22 @@ def generate_datasets(out_dir: str | Path, seed: int = 7,
             "trunk_input": "physical (x,y,t), normalized internally to [-1,1]",
             "LF_feature_mesh": "11x11 spatial mesh x 4 times; 5x5x3 subset used in nonlinear branch"
         },
-        "design": "LF and HF differ by grid resolution; both use central scheme. Upwind is reserved for a separate future study.",
+        "design": f"LF {lf_scheme} on {cfg.n_lf}x{cfg.n_lf}; HF central on {cfg.n_hf}x{cfg.n_hf}.",
+        "scheme_diagnostics": {
+            "dx_lf": dx_lf, "dx_hf": dx_hf,
+            "target_LF_vs_HF": target_lf_hf_gap,
+            "resolution_only_Central21_vs_Central129": central_lf_hf_gap,
+            "same_grid_LF_scheme_effect": same_grid_scheme_gap,
+            "LF_cell_Peclet_x": abs(cfg.vx)*dx_lf/(2.0*cfg.kappa),
+            "LF_cell_Peclet_y": abs(cfg.vy)*dx_lf/(2.0*cfg.kappa),
+            "HF_cell_Peclet_x": abs(cfg.vx)*dx_hf/(2.0*cfg.kappa),
+            "HF_cell_Peclet_y": abs(cfg.vy)*dx_hf/(2.0*cfg.kappa),
+            "LF_upwind_modified_diffusion_x": abs(cfg.vx)*dx_lf/2.0 if lf_scheme == "upwind" else 0.0,
+            "LF_upwind_modified_diffusion_y": abs(cfg.vy)*dx_lf/2.0 if lf_scheme == "upwind" else 0.0,
+            "LF_upwind_effective_kappa_x": cfg.kappa + abs(cfg.vx)*dx_lf/2.0 if lf_scheme == "upwind" else cfg.kappa,
+            "LF_upwind_effective_kappa_y": cfg.kappa + abs(cfg.vy)*dx_lf/2.0 if lf_scheme == "upwind" else cfg.kappa,
+            "warning": "Central advection has no first-order upwind artificial diffusion, but it is not exact and may show dispersive/oscillatory error at high cell Peclet number. Upwind modified-equation diffusion is a leading-order estimate."
+        },
         "timing": {"lf_solver_seconds": float(lf_solver_seconds),
                    "hf_solver_seconds": float(hf_solver_seconds),
                    "dataset_generation_seconds": float(time.perf_counter()-generation_t0)},

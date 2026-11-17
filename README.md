@@ -20,7 +20,7 @@
 
 Начальное условие: `u(x,y,0)=0`. Граничные условия Дирихле: `u=0` на всех четырёх сторонах квадрата `[0,1]^2`.
 
-Основной fidelity-дизайн: LF central finite differences на `21×21`, HF central finite differences на `129×129`. В обеих моделях обратная задача обучается по одним и тем же 80 зашумлённым HF-наблюдениям (`noise_fraction=0.005`). Upwind кодируется в решателе для отдельного будущего cross-scheme исследования, но не входит в основной эксперимент.
+Базовый fidelity-дизайн по умолчанию: LF central finite differences на `21×21`, HF central finite differences на `129×129`. Дополнительно поддержан scheme-based вариант: LF Upwind на `21×21`, HF Central на `129×129` (`--lf-scheme upwind`). HF-схема в обоих случаях остаётся Central. В обеих нейросетях обратная задача обучается по одним и тем же 80 зашумлённым HF-наблюдениям (`noise_fraction=0.005`). Диффузия дискретизуется центрально и в LF, и в HF; меняется схема только для адвективных производных.
 
 ## M1: структура и loss
 
@@ -90,6 +90,26 @@ Smoke-test создаёт маленький датасет, делает 2 Adam
 python run_exp1.py --seed 7 --model both --output results_seed_7 --device cpu
 ```
 
+### Scheme-based LF-Upwind / HF-Central
+
+Для отдельного эксперимента с различием схем запустите:
+
+```bash
+python run_exp1.py --seed 7 --model both --lf-scheme upwind --output results_upwind21_central129_seed_7 --device cpu
+```
+
+В этом режиме `datasets.py` генерирует LF-ансамбль на `21×21` с Upwind для адвекции, а целевая HF-траектория, 80 noisy observations и clean test остаются на `129×129` Central. Имя `.npz` включает LF-схему, чтобы случайно не переиспользовать Central/Central датасет. Проверьте `dataset_metadata.json`: поля `LF.scheme`, `HF.scheme` и `scheme_diagnostics` должны соответственно показывать `upwind`, `central` и оценку модифицированной upwind-диффузии.
+
+Для 10 seed с тем же fidelity-дизайном:
+
+```bash
+python run_10seeds.py --lf-scheme upwind --output results_10seeds_upwind21_central129 --device cpu
+```
+
+Этот запуск сравнивает PINN-Raissi (HF-only baseline) и M1 (LF-Upwind pretraining + HF-Central inverse correction). Это уже не чистое исследование влияния только сетки: LF/HF отличаются и разрешением, и схемой адвекции. Для причинной декомпозиции этих факторов нужны дополнительные контрольные пары Central/Central и Upwind/Upwind при тех же сетках, а также, желательно, 21×21 Central против 21×21 Upwind.
+
+**Важно:** Central не является точной схемой и не гарантирует отсутствие ошибки. Она не добавляет ведущую искусственную диффузию первого порядка, характерную для Upwind, но при высоком сеточном числе Пекле может давать дисперсионные/осциллирующие ошибки. В вашем случае `Pe_cell,x` составляет около 8.75 на LF-сетке и 1.37 на HF-сетке.
+
 Стартовая конфигурация по умолчанию (может быть изменена заранее и одинаково для обоих методов):
 
 - Adam: 2,000 epochs;
@@ -127,7 +147,7 @@ python inference.py --checkpoint results_seed_7/M1_PI_DeepONet.pt --coords query
 
 ## Состав проекта
 
-- `solver.py` — PDE solver, central/upwind finite differences.
+- `solver.py` — PDE solver, central/upwind finite differences for advection; diffusion is central on both fidelities.
 - `datasets.py` — LF ensemble, HF observations и clean test.
 - `models.py` — PINN-Raissi, DeepONet, ModifiedDeepONet, composite M1.
 - `train.py` — losses, Adam, SciPy L-BFGS-B, metrics and checkpoints.

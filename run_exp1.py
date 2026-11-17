@@ -16,7 +16,7 @@ def run_single(seed: int, output: str | Path, model: str = "both", device: str =
                lf_scheme: str = "central"):
     out = Path(output)
     out.mkdir(parents=True, exist_ok=True)
-    data_file = out / f"exp1_multifidelity_seed_{seed}.npz"
+    data_file = out / f"exp1_multifidelity_seed_{seed}_lf_{lf_scheme}_hf_central.npz"
     if not data_file.exists():
         data_file = generate_datasets(out, seed=seed,
             n_lf_parameters=n_lf_parameters,
