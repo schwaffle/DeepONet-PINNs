@@ -1,0 +1,29 @@
+{
+  "seeds": [
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16
+  ],
+  "device": "cpu",
+  "adam_epochs": 2000,
+  "lbfgs_max_iter": 5000,
+  "lf_pretrain_epochs": 1000,
+  "collocation": 256,
+  "n_boundary": 128,
+  "n_lf_parameters": 40,
+  "points_per_parameter": 384,
+  "n_test_axis": 33,
+  "learning_rate": 0.001,
+  "lf_scheme": "upwind",
+  "n_completed_seeds": 10,
+  "n_failed_seeds": 0,
+  "HF_scheme": "central",
+  "LF_scheme": "upwind"
+}

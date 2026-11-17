@@ -17,7 +17,8 @@ METRICS = ["relerr_Q", "relerr_xs", "relerr_ys", "param_relerr_mean",
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Run 10 seeds for PINN-Raissi vs M1 PI-DeepONet")
+    ap = argparse.ArgumentParser(
+        description="Run 10 seeds for PINN-Raissi vs M1 PI-DeepONet")
     ap.add_argument("--output", default="results_10seeds")
     ap.add_argument("--device", default="cpu")
     ap.add_argument("--adam-epochs", type=int, default=2000)
@@ -29,10 +30,12 @@ def main():
     ap.add_argument("--points-per-parameter", type=int, default=384)
     ap.add_argument("--n-test-axis", type=int, default=33)
     ap.add_argument("--learning-rate", type=float, default=1e-3)
-    ap.add_argument("--lf-scheme", choices=["central", "upwind"], default="central")
+    ap.add_argument(
+        "--lf-scheme", choices=["central", "upwind"], default="central")
     a = ap.parse_args()
     torch.set_num_threads(1)
-    root = Path(a.output); root.mkdir(parents=True, exist_ok=True)
+    root = Path(a.output)
+    root.mkdir(parents=True, exist_ok=True)
     all_rows, failures = [], []
     cfg = dict(device=a.device, adam_epochs=a.adam_epochs,
                lbfgs_max_iter=a.lbfgs_max_iter,
@@ -61,16 +64,20 @@ def main():
             for metric in METRICS:
                 if metric in grp:
                     vals = pd.to_numeric(grp[metric], errors="coerce").dropna()
-                    row[f"{metric}_mean"] = float(vals.mean()) if len(vals) else np.nan
-                    row[f"{metric}_std"] = float(vals.std(ddof=1)) if len(vals)>1 else (0.0 if len(vals)==1 else np.nan)
+                    row[f"{metric}_mean"] = float(
+                        vals.mean()) if len(vals) else np.nan
+                    row[f"{metric}_std"] = float(vals.std(ddof=1)) if len(
+                        vals) > 1 else (0.0 if len(vals) == 1 else np.nan)
             summary_rows.append(row)
-        pd.DataFrame(summary_rows).to_csv(root/"mean_std_summary.csv", index=False)
+        pd.DataFrame(summary_rows).to_csv(
+            root/"mean_std_summary.csv", index=False)
     (root/"failures.json").write_text(json.dumps(failures, indent=2), encoding="utf-8")
     (root/"run_config.json").write_text(json.dumps({"seeds": SEEDS, **cfg,
-           "n_completed_seeds": len({r["seed"] for d in all_rows for r in d.to_dict("records")}),
-           "n_failed_seeds": len(failures), "HF_scheme": "central",
-           "LF_scheme": a.lf_scheme}, indent=2), encoding="utf-8")
-    print(f"Completed seeds: {len(all_rows)} / {len(SEEDS)}; failures: {len(failures)}")
+                                                    "n_completed_seeds": len({r["seed"] for d in all_rows for r in d.to_dict("records")}),
+                                                    "n_failed_seeds": len(failures), "HF_scheme": "central",
+                                                    "LF_scheme": a.lf_scheme}, indent=2), encoding="utf-8")
+    print(
+        f"Completed seeds: {len(all_rows)} / {len(SEEDS)}; failures: {len(failures)}")
 
 
 if __name__ == "__main__":

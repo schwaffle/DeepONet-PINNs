@@ -61,15 +61,18 @@ def predict_points(model, coords: np.ndarray, u_scale: float, device="cpu", batc
     preds = []
     with torch.no_grad():
         for start in range(0, len(coords), batch_size):
-            z = torch.as_tensor(coords[start:start+batch_size], dtype=torch.float32, device=device)
+            z = torch.as_tensor(
+                coords[start:start+batch_size], dtype=torch.float32, device=device)
             preds.append(model(z).squeeze(-1).cpu().numpy())
     return np.concatenate(preds)*u_scale
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Predict concentration with a trained model")
+    ap = argparse.ArgumentParser(
+        description="Predict concentration with a trained model")
     ap.add_argument("--checkpoint", required=True)
-    ap.add_argument("--coords", required=True, help="NPZ containing coords array [N,3] in physical units")
+    ap.add_argument("--coords", required=True,
+                    help="NPZ containing coords array [N,3] in physical units")
     ap.add_argument("--output", default="prediction.npy")
     ap.add_argument("--theta", nargs=3, type=float, default=None)
     ap.add_argument("--device", default="cpu")
@@ -82,7 +85,8 @@ def main():
     pred = predict_points(model, coords, u_scale, args.device)
     np.save(args.output, pred)
     print(f"Saved predictions: {Path(args.output).resolve()}")
-    print("Identified source parameters:", model.theta_physical().detach().cpu().numpy())
+    print("Identified source parameters:",
+          model.theta_physical().detach().cpu().numpy())
 
 
 if __name__ == "__main__":

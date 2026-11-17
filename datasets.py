@@ -10,7 +10,8 @@ import numpy as np
 from solver import (ExperimentConfig, solve, sample_hf_observations,
                     sample_operator_query_points, interpolate_trajectory)
 
-PARAM_BOUNDS = np.asarray([[0.4, 1.6], [0.1, 0.9], [0.1, 0.9]], dtype=np.float64)
+PARAM_BOUNDS = np.asarray(
+    [[0.4, 1.6], [0.1, 0.9], [0.1, 0.9]], dtype=np.float64)
 
 
 def source_profile_numpy(theta: np.ndarray, sensor_xy: np.ndarray, sigma_s: float) -> np.ndarray:
@@ -36,7 +37,8 @@ def make_lf_feature_coords(nxy: int = 11, T: float = 0.5, times_frac=(0.25, 0.50
     xx, yy = np.meshgrid(axis, axis, indexing="ij")
     rows = []
     for tf in times_frac:
-        rows.append(np.column_stack([xx.ravel(), yy.ravel(), np.full(xx.size, tf*T)]))
+        rows.append(np.column_stack(
+            [xx.ravel(), yy.ravel(), np.full(xx.size, tf*T)]))
     return np.concatenate(rows, axis=0).astype(np.float32)
 
 
@@ -81,9 +83,11 @@ def generate_datasets(out_dir: str | Path, seed: int = 7,
 
     sensor_xy = make_sensor_grid(sensor_axis_n)
     rng_lf = np.random.default_rng(seed + 101)
-    theta_all = _sample_parameter_functions(n_lf_parameters, rng_lf, cfg.theta_true)
+    theta_all = _sample_parameter_functions(
+        n_lf_parameters, rng_lf, cfg.theta_true)
     perm = rng_lf.permutation(n_lf_parameters)
-    n_val = max(1, int(round(0.2*n_lf_parameters))) if n_lf_parameters >= 5 else 1
+    n_val = max(1, int(round(0.2*n_lf_parameters))
+                ) if n_lf_parameters >= 5 else 1
     val_set = set(perm[:n_val].tolist())
 
     chunks = {f"lf_{split}_{name}": [] for split in ("train", "val")
@@ -93,33 +97,43 @@ def generate_datasets(out_dir: str | Path, seed: int = 7,
         solve_t0 = time.perf_counter()
         lf_traj = solve(tuple(theta.tolist()), cfg.n_lf, lf_scheme, cfg)
         lf_solver_seconds += time.perf_counter() - solve_t0
-        qcoords = sample_operator_query_points(theta, cfg, points_per_parameter, rng_lf)
+        qcoords = sample_operator_query_points(
+            theta, cfg, points_per_parameter, rng_lf)
         qvalues = interpolate_trajectory(lf_traj, qcoords)
-        src = source_profile_numpy(theta, sensor_xy, cfg.sigma_s).astype(np.float32)
+        src = source_profile_numpy(
+            theta, sensor_xy, cfg.sigma_s).astype(np.float32)
         split = "val" if i in val_set else "train"
-        chunks[f"lf_{split}_source"].append(np.repeat(src[None, :], points_per_parameter, axis=0))
+        chunks[f"lf_{split}_source"].append(
+            np.repeat(src[None, :], points_per_parameter, axis=0))
         chunks[f"lf_{split}_coords"].append(qcoords)
-        chunks[f"lf_{split}_values"].append(qvalues[:, None].astype(np.float32))
-        chunks[f"lf_{split}_theta"].append(np.repeat(theta[None, :], points_per_parameter, axis=0).astype(np.float32))
+        chunks[f"lf_{split}_values"].append(
+            qvalues[:, None].astype(np.float32))
+        chunks[f"lf_{split}_theta"].append(
+            np.repeat(theta[None, :], points_per_parameter, axis=0).astype(np.float32))
 
     arrays = {k: np.concatenate(v, axis=0) for k, v in chunks.items()}
-    arrays["lf_parameters_train"] = np.asarray([theta_all[i] for i in range(n_lf_parameters) if i not in val_set], dtype=np.float32)
-    arrays["lf_parameters_val"] = np.asarray([theta_all[i] for i in range(n_lf_parameters) if i in val_set], dtype=np.float32)
+    arrays["lf_parameters_train"] = np.asarray([theta_all[i] for i in range(
+        n_lf_parameters) if i not in val_set], dtype=np.float32)
+    arrays["lf_parameters_val"] = np.asarray(
+        [theta_all[i] for i in range(n_lf_parameters) if i in val_set], dtype=np.float32)
 
     # HF target trajectory: central differences on the 129x129 grid.
     hf_t0 = time.perf_counter()
     hf = solve(cfg.theta_true, cfg.n_hf, "central", cfg)
     hf_solver_seconds = time.perf_counter() - hf_t0
     rng_obs = np.random.default_rng(seed)
-    obs_coords, obs_values, noise_std = sample_hf_observations(hf, cfg, rng_obs)
+    obs_coords, obs_values, noise_std = sample_hf_observations(
+        hf, cfg, rng_obs)
 
     # Full clean HF test: every saved HF grid-time point except exact noisy
     # observation locations. This makes test metrics representative of the
     # resolved HF trajectory rather than only of a visualisation sub-grid.
     times, xg, yg, fields = hf
-    all_coords = np.asarray([(x, y, t) for t in times for x in xg for y in yg], dtype=np.float32)
+    all_coords = np.asarray(
+        [(x, y, t) for t in times for x in xg for y in yg], dtype=np.float32)
     all_values = fields.reshape(-1).astype(np.float32)
-    obs_keys = {(round(float(x), 7), round(float(y), 7), round(float(t), 7)) for x, y, t in obs_coords}
+    obs_keys = {(round(float(x), 7), round(float(y), 7), round(float(t), 7))
+                for x, y, t in obs_coords}
     keep = np.asarray([(round(float(x), 7), round(float(y), 7), round(float(t), 7)) not in obs_keys
                        for x, y, t in all_coords], dtype=bool)
     test_coords = all_coords[keep]
@@ -127,7 +141,8 @@ def generate_datasets(out_dir: str | Path, seed: int = 7,
 
     # Separate structured subset for figures only. It is not used for metrics,
     # loss construction, scaling, validation, or early stopping.
-    ids = np.unique(np.linspace(0, cfg.n_hf-1, n_test_axis).round().astype(int))
+    ids = np.unique(np.linspace(
+        0, cfg.n_hf-1, n_test_axis).round().astype(int))
     plot_coords = np.asarray([(xg[ix], yg[iy], t)
                               for t in times for ix in ids for iy in ids], dtype=np.float32)
     plot_values = np.asarray([fields[it, ix, iy]
@@ -137,7 +152,8 @@ def generate_datasets(out_dir: str | Path, seed: int = 7,
     lf_sub_idx = make_lf_sub_indices(nxy=11, ntime=4)
     # Include LF scheme in the filename. Otherwise a previous Central/Central
     # dataset could silently be reused when the user requests LF-Upwind/HF-Central.
-    npz_path = out / f"exp1_multifidelity_seed_{seed}_lf_{lf_scheme}_hf_central.npz"
+    npz_path = out / \
+        f"exp1_multifidelity_seed_{seed}_lf_{lf_scheme}_hf_central.npz"
     np.savez_compressed(
         npz_path, **arrays,
         obs_coords=obs_coords, obs_values=obs_values,
@@ -161,9 +177,11 @@ def generate_datasets(out_dir: str | Path, seed: int = 7,
                          else solve(cfg.theta_true, cfg.n_lf, "central", cfg))
     tx, ty = np.meshgrid(target_lf[1], target_lf[2], indexing="ij")
     lf_diag_coords = np.asarray(
-        [(x, y, t) for t in target_lf[0] for x in target_lf[1] for y in target_lf[2]],
+        [(x, y, t) for t in target_lf[0]
+         for x in target_lf[1] for y in target_lf[2]],
         dtype=np.float32)
-    hf_at_lf = interpolate_trajectory(hf, lf_diag_coords).reshape(len(target_lf[0]), cfg.n_lf, cfg.n_lf)
+    hf_at_lf = interpolate_trajectory(hf, lf_diag_coords).reshape(
+        len(target_lf[0]), cfg.n_lf, cfg.n_lf)
     target_lf_err = target_lf[3] - hf_at_lf
     target_lf_hf_gap = {
         "MAE_on_LF_grid": float(np.mean(np.abs(target_lf_err))),
@@ -239,19 +257,22 @@ def generate_datasets(out_dir: str | Path, seed: int = 7,
                    "dataset_generation_seconds": float(time.perf_counter()-generation_t0)},
         "note": "The target source theta_true is excluded from the LF function ensemble."
     }
-    (out / "dataset_metadata.json").write_text(json.dumps(metadata, indent=2, ensure_ascii=False), encoding="utf-8")
+    (out / "dataset_metadata.json").write_text(json.dumps(metadata,
+                                                          indent=2, ensure_ascii=False), encoding="utf-8")
     return npz_path
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Generate LF operator and HF inverse data")
+    ap = argparse.ArgumentParser(
+        description="Generate LF operator and HF inverse data")
     ap.add_argument("--output", default="results")
     ap.add_argument("--seed", type=int, default=7)
     ap.add_argument("--lf-parameters", type=int, default=40)
     ap.add_argument("--points-per-parameter", type=int, default=384)
     ap.add_argument("--n-test-axis", type=int, default=33)
     ap.add_argument("--sensor-axis-n", type=int, default=12)
-    ap.add_argument("--lf-scheme", choices=["central", "upwind"], default="central")
+    ap.add_argument(
+        "--lf-scheme", choices=["central", "upwind"], default="central")
     args = ap.parse_args()
     path = generate_datasets(args.output, args.seed, args.lf_parameters,
                              args.points_per_parameter, args.n_test_axis,

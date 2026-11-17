@@ -70,7 +70,8 @@ def pde_residual(model, coords: torch.Tensor, u_scale: float, cfg: ExperimentCon
     uxx = torch.autograd.grad(ux.sum(), z, create_graph=True)[0][:, 0:1]
     uyy = torch.autograd.grad(uy.sum(), z, create_graph=True)[0][:, 1:2]
     theta = model.theta_physical()
-    residual = ut + cfg.vx*ux + cfg.vy*uy - cfg.kappa*(uxx+uyy) - source_torch(z, theta, cfg)
+    residual = ut + cfg.vx*ux + cfg.vy*uy - cfg.kappa * \
+        (uxx+uyy) - source_torch(z, theta, cfg)
     return residual*(cfg.T/max(u_scale, 1e-12))
 
 
@@ -176,7 +177,8 @@ def train_lf_operator(lf_model, data, u_scale: float, device: str,
                             "val_mse": float(val.detach().cpu())})
             if float(val) < best_val:
                 best_val = float(val)
-                best_state = {k: v.detach().cpu().clone() for k, v in lf_model.state_dict().items()}
+                best_state = {k: v.detach().cpu().clone()
+                              for k, v in lf_model.state_dict().items()}
     if best_state is not None:
         lf_model.load_state_dict(best_state)
     return history, best_val
@@ -191,7 +193,8 @@ def _assign_flat(parameters, x):
     with torch.no_grad():
         for p in parameters:
             count = p.numel()
-            block = torch.as_tensor(x[offset:offset+count], dtype=p.dtype, device=p.device).reshape_as(p)
+            block = torch.as_tensor(
+                x[offset:offset+count], dtype=p.dtype, device=p.device).reshape_as(p)
             p.copy_(block)
             offset += count
 
@@ -202,7 +205,8 @@ def _flat_gradients(parameters):
         if p.grad is None:
             grads.append(np.zeros(p.numel(), dtype=np.float64))
         else:
-            grads.append(p.grad.detach().cpu().numpy().ravel().astype(np.float64))
+            grads.append(p.grad.detach().cpu(
+            ).numpy().ravel().astype(np.float64))
     return np.concatenate(grads)
 
 
@@ -222,12 +226,14 @@ def scipy_lbfgsb(model, loss_closure, max_iter: int, history: list, start_iter: 
         return float(loss.detach().cpu()), grad
 
     callback_count = [0]
+
     def callback(xk):
         _assign_flat(params, xk)
         with torch.enable_grad():
             loss, comps = loss_closure()
         callback_count[0] += 1
-        _record(history, "L-BFGS-B", start_iter+callback_count[0], loss.detach(), comps, model)
+        _record(history, "L-BFGS-B", start_iter +
+                callback_count[0], loss.detach(), comps, model)
 
     result = minimize(fun, x0, method="L-BFGS-B", jac=True, callback=callback,
                       options={"maxiter": int(max_iter), "maxfun": max(20, int(max_iter)*5),
@@ -250,13 +256,16 @@ def train_inverse_model(name, model, D, args, weights, seed: int):
 
     # Adam: collocation and BC/IC points are re-sampled each epoch.
     for ep in range(1, args.adam_epochs+1):
-        col = to_torch(sample_collocation(args.collocation, D["cfg"], rng), args.device)
+        col = to_torch(sample_collocation(
+            args.collocation, D["cfg"], rng), args.device)
         b_np, i_np = sample_boundary_initial(args.n_boundary, D["cfg"], rng)
         bc, ic = to_torch(b_np, args.device), to_torch(i_np, args.device)
         lf_batch = None
         if isinstance(model, MultiFidelityPIDeepONet):
-            ids = rng_lf.integers(0, len(lf_y), size=min(args.lf_joint_batch, len(lf_y)))
-            lf_batch = {"source": lf_s[ids], "coords": lf_c[ids], "values": lf_y[ids]}
+            ids = rng_lf.integers(0, len(lf_y), size=min(
+                args.lf_joint_batch, len(lf_y)))
+            lf_batch = {"source": lf_s[ids],
+                        "coords": lf_c[ids], "values": lf_y[ids]}
         loss, comps = compute_losses(model, D, col, bc, ic, weights, lf_batch)
         optimizer.zero_grad(set_to_none=True)
         loss.backward()
@@ -265,13 +274,16 @@ def train_inverse_model(name, model, D, args, weights, seed: int):
             _record(history, "Adam", ep, loss.detach(), comps, model)
 
     # L-BFGS-B: fixed HF observations, collocation, boundary/initial, and LF subset.
-    col = to_torch(sample_collocation(args.collocation, D["cfg"], rng), args.device)
+    col = to_torch(sample_collocation(
+        args.collocation, D["cfg"], rng), args.device)
     b_np, i_np = sample_boundary_initial(args.n_boundary, D["cfg"], rng)
     bc, ic = to_torch(b_np, args.device), to_torch(i_np, args.device)
     lf_batch = None
     if isinstance(model, MultiFidelityPIDeepONet):
-        ids = rng_lf.choice(len(lf_y), size=min(args.lf_lbfgs_batch, len(lf_y)), replace=False)
-        lf_batch = {"source": lf_s[ids], "coords": lf_c[ids], "values": lf_y[ids]}
+        ids = rng_lf.choice(len(lf_y), size=min(
+            args.lf_lbfgs_batch, len(lf_y)), replace=False)
+        lf_batch = {"source": lf_s[ids],
+                    "coords": lf_c[ids], "values": lf_y[ids]}
 
     def fixed_closure():
         return compute_losses(model, D, col, bc, ic, weights, lf_batch)
@@ -316,7 +328,8 @@ def evaluate_model(name, model, D, seconds, lbfgs_stats):
     obs_pred = _predict(model, D["obs_coords_np"], D["device"])*D["u_scale"]
     obs_err = obs_pred-D["obs_values"]
     theta = model.theta_physical().detach().cpu().numpy()
-    rel = np.abs(theta-D["theta_true"])/np.maximum(np.abs(D["theta_true"]), 1e-12)
+    rel = np.abs(theta-D["theta_true"]) / \
+        np.maximum(np.abs(D["theta_true"]), 1e-12)
     test_coords = D["test_coords"]
     interior_mask = ((test_coords[:, 0] > 1e-7) & (test_coords[:, 0] < 1.0-1e-7)
                      & (test_coords[:, 1] > 1e-7) & (test_coords[:, 1] < 1.0-1e-7)
@@ -382,7 +395,8 @@ def train_experiment(data_file: str | Path, out_dir: str | Path, seed: int = 7,
     if model_choice in {"both", "m1"}:
         D["lf_train_source_t"] = to_torch(data["lf_train_source"], device)
         D["lf_train_coords_t"] = to_torch(data["lf_train_coords"], device)
-        D["lf_train_values_t"] = to_torch(data["lf_train_values"]/u_scale, device)
+        D["lf_train_values_t"] = to_torch(
+            data["lf_train_values"]/u_scale, device)
 
     weights = dict(DEFAULT_LOSSES)
     if fast_dev:
@@ -405,12 +419,15 @@ def train_experiment(data_file: str | Path, out_dir: str | Path, seed: int = 7,
 
     if model_choice in {"both", "pinn"}:
         seed_everything(seed+300)
-        pinn = PINN(theta_init, coord_min, coord_max, width=20, depth=8).to(device)
-        hist, seconds, opt_stats = train_inverse_model("PINN_Raissi", pinn, D, args, weights, seed+701)
+        pinn = PINN(theta_init, coord_min, coord_max,
+                    width=20, depth=8).to(device)
+        hist, seconds, opt_stats = train_inverse_model(
+            "PINN_Raissi", pinn, D, args, weights, seed+701)
         hyper = {"width": 20, "depth": 8, "optimizer": "Adam + SciPy L-BFGS-B",
                  "loss_weights": weights}
         _save_checkpoint(out, "PINN_Raissi", pinn, seed, cfg, u_scale, hyper)
-        (out/"history_PINN_Raissi.json").write_text(json.dumps(hist, indent=2), encoding="utf-8")
+        (out/"history_PINN_Raissi.json").write_text(json.dumps(hist,
+                                                               indent=2), encoding="utf-8")
         pinn_row = evaluate_model("PINN_Raissi", pinn, D, seconds, opt_stats)
         pinn_row["lf_pretraining_seconds"] = np.nan
         pinn_row["joint_inverse_training_seconds"] = float(seconds)
@@ -426,14 +443,16 @@ def train_experiment(data_file: str | Path, out_dir: str | Path, seed: int = 7,
         lf_hist, lf_best_val = train_lf_operator(
             lf, data, u_scale, device, lf_pretrain_epochs, lf_batch_size, seed+501)
         lf_pretrain_seconds = time.perf_counter() - lf_pretrain_t0
-        (out/"history_LF_operator.json").write_text(json.dumps(lf_hist, indent=2), encoding="utf-8")
+        (out/"history_LF_operator.json").write_text(json.dumps(lf_hist,
+                                                               indent=2), encoding="utf-8")
         m1 = MultiFidelityPIDeepONet(
             lf_model=lf, sensor_xy=data["sensor_xy"],
             lf_feature_coords=data["lf_feature_coords"], lf_sub_idx=data["lf_sub_idx"],
             theta_init=theta_init, coord_min=coord_min, coord_max=coord_max,
             sigma_s=cfg.sigma_s, linear_latent=5, linear_hidden=30,
             nonlinear_latent=20, nonlinear_hidden=20, nonlinear_depth=2).to(device)
-        hist, seconds_joint, opt_stats = train_inverse_model("M1_PI_DeepONet", m1, D, args, weights, seed+701)
+        hist, seconds_joint, opt_stats = train_inverse_model(
+            "M1_PI_DeepONet", m1, D, args, weights, seed+701)
         seconds_total = seconds_joint + lf_pretrain_seconds
         hyper = {"lf_kind": "ModifiedDeepONet", "lf_latent": 64, "lf_hidden": 30,
                  "lf_depth": 3, "linear_latent": 5, "nonlinear_latent": 20,
@@ -443,7 +462,8 @@ def train_experiment(data_file: str | Path, out_dir: str | Path, seed: int = 7,
                  "optimizer": "Adam + SciPy L-BFGS-B", "loss_weights": weights,
                  "note": "Composite MF PI-DeepONet Eq. (15) + task-specific HF observation loss."}
         _save_checkpoint(out, "M1_PI_DeepONet", m1, seed, cfg, u_scale, hyper)
-        (out/"history_M1_PI_DeepONet.json").write_text(json.dumps(hist, indent=2), encoding="utf-8")
+        (out/"history_M1_PI_DeepONet.json").write_text(json.dumps(hist,
+                                                                  indent=2), encoding="utf-8")
         row = evaluate_model("M1_PI_DeepONet", m1, D, seconds_total, opt_stats)
         row["lf_pretraining_seconds"] = float(lf_pretrain_seconds)
         row["joint_inverse_training_seconds"] = float(seconds_joint)
@@ -456,14 +476,17 @@ def train_experiment(data_file: str | Path, out_dir: str | Path, seed: int = 7,
     metrics.to_csv(out/"exp1_comparison_seed.csv", index=False)
     (out/"results_seed.json").write_text(json.dumps(rows, indent=2), encoding="utf-8")
     dataset_meta_path = Path(data_file).parent/"dataset_metadata.json"
-    dataset_meta = json.loads(dataset_meta_path.read_text(encoding="utf-8")) if dataset_meta_path.exists() else {}
+    dataset_meta = json.loads(dataset_meta_path.read_text(
+        encoding="utf-8")) if dataset_meta_path.exists() else {}
     timing_meta = dataset_meta.get("timing", {})
     for row in rows:
         row["lf_solver_generation_seconds"] = (float(timing_meta.get("lf_solver_seconds", np.nan))
-                                                if row["method"] == "M1_PI_DeepONet" else np.nan)
-        row["shared_hf_solver_generation_seconds"] = float(timing_meta.get("hf_solver_seconds", np.nan))
+                                               if row["method"] == "M1_PI_DeepONet" else np.nan)
+        row["shared_hf_solver_generation_seconds"] = float(
+            timing_meta.get("hf_solver_seconds", np.nan))
         row["end_to_end_method_seconds_excluding_shared_HF_data"] = (
-            float(row["training_seconds"]) + float(timing_meta.get("lf_solver_seconds", 0.0))
+            float(row["training_seconds"]) +
+            float(timing_meta.get("lf_solver_seconds", 0.0))
             if row["method"] == "M1_PI_DeepONet" else float(row["training_seconds"]))
 
     # Rebuild tables after attaching the separately measured LF solver cost.
@@ -490,14 +513,19 @@ def train_experiment(data_file: str | Path, out_dir: str | Path, seed: int = 7,
         "PI_DeepONet_reference": "Howard et al. 2023, JCP 493, 112462, Eq. (15); modified DeepONet based on Wang et al.",
         "pinn_reference": "Raissi et al. 2019, JCP 378, 686-707; fully-connected tanh baseline adapted to 2D+time inverse source problem",
     }
-    (out/"training_metadata.json").write_text(json.dumps(metadata, indent=2, ensure_ascii=False), encoding="utf-8")
+    (out/"training_metadata.json").write_text(json.dumps(metadata,
+                                                         indent=2, ensure_ascii=False), encoding="utf-8")
 
     # Save both metric test predictions and a separate structured visualization grid.
-    pred_payload = {"test_coords": D["test_coords"], "test_truth": D["test_values"]}
-    plot_payload = {"plot_coords": D["plot_coords"], "plot_truth": D["plot_values"]}
+    pred_payload = {
+        "test_coords": D["test_coords"], "test_truth": D["test_values"]}
+    plot_payload = {
+        "plot_coords": D["plot_coords"], "plot_truth": D["plot_values"]}
     for name, model_obj in models.items():
-        pred_payload[name] = _predict(model_obj, D["test_coords"], device)*u_scale
-        plot_payload[name] = _predict(model_obj, D["plot_coords"], device)*u_scale
+        pred_payload[name] = _predict(
+            model_obj, D["test_coords"], device)*u_scale
+        plot_payload[name] = _predict(
+            model_obj, D["plot_coords"], device)*u_scale
     np.savez_compressed(out/"predictions_test.npz", **pred_payload)
     np.savez_compressed(out/"predictions_plot.npz", **plot_payload,
                         plot_times=data["test_times"], plot_x_axis=data["test_x_axis"],
@@ -508,7 +536,8 @@ def train_experiment(data_file: str | Path, out_dir: str | Path, seed: int = 7,
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Compare PINN-Raissi and M1 PI-DeepONet")
+    ap = argparse.ArgumentParser(
+        description="Compare PINN-Raissi and M1 PI-DeepONet")
     ap.add_argument("--model", choices=["both", "pinn", "m1"], default="both")
     ap.add_argument("--data", default=None)
     ap.add_argument("--output", default="results_exp1")
@@ -527,7 +556,8 @@ def main():
     torch.set_num_threads(1)
     out = Path(args.output)
     out.mkdir(parents=True, exist_ok=True)
-    data_file = Path(args.data) if args.data else out/f"exp1_multifidelity_seed_{args.seed}.npz"
+    data_file = Path(args.data) if args.data else out / \
+        f"exp1_multifidelity_seed_{args.seed}.npz"
     if not data_file.exists():
         data_file = generate_datasets(out, seed=args.seed)
     df = train_experiment(

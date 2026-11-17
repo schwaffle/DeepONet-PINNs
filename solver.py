@@ -52,7 +52,8 @@ def solve(theta, n: int, scheme: str, cfg: ExperimentConfig):
     steps = int(np.ceil(cfg.T / dt))
     dt = cfg.T / steps
     u = np.zeros((n, n), dtype=np.float64)
-    save_ids = np.unique(np.linspace(0, steps, cfg.snapshot_count).round().astype(int))
+    save_ids = np.unique(np.linspace(
+        0, steps, cfg.snapshot_count).round().astype(int))
     save_set = set(save_ids.tolist())
     snapshots, times = [], []
     for k in range(steps + 1):
@@ -88,8 +89,8 @@ def bilinear(field: np.ndarray, xgrid: np.ndarray, ygrid: np.ndarray,
     iy = np.clip(np.floor((yq - ygrid[0]) / dx).astype(int), 0, len(ygrid)-2)
     ax = (xq - xgrid[ix]) / dx
     ay = (yq - ygrid[iy]) / dx
-    return ((1-ax)*(1-ay)*field[ix,iy] + ax*(1-ay)*field[ix+1,iy]
-            + (1-ax)*ay*field[ix,iy+1] + ax*ay*field[ix+1,iy+1])
+    return ((1-ax)*(1-ay)*field[ix, iy] + ax*(1-ay)*field[ix+1, iy]
+            + (1-ax)*ay*field[ix, iy+1] + ax*ay*field[ix+1, iy+1])
 
 
 def interpolate_trajectory(traj, coords: np.ndarray) -> np.ndarray:
@@ -107,7 +108,8 @@ def interpolate_trajectory(traj, coords: np.ndarray) -> np.ndarray:
         if hi == lo:
             out[k] = v0
         else:
-            v1 = bilinear(fields[hi], xg, yg, np.array([xq]), np.array([yq]))[0]
+            v1 = bilinear(fields[hi], xg, yg, np.array(
+                [xq]), np.array([yq]))[0]
             a = (tq-times[lo])/(times[hi]-times[lo])
             out[k] = (1-a)*v0 + a*v1
     return out
@@ -119,10 +121,12 @@ def sample_hf_observations(traj, cfg: ExperimentConfig, rng: np.random.Generator
     valid = []
     for it, t in enumerate(times):
         if t >= 0.1*cfg.T:
-            ii, jj = np.where((X >= 0.05) & (X <= 0.95) & (Y >= 0.05) & (Y <= 0.95))
+            ii, jj = np.where((X >= 0.05) & (X <= 0.95) &
+                              (Y >= 0.05) & (Y <= 0.95))
             valid.extend((it, i, j) for i, j in zip(ii, jj))
     if len(valid) < cfg.n_obs:
-        raise RuntimeError("Not enough valid HF grid points for requested observations")
+        raise RuntimeError(
+            "Not enough valid HF grid points for requested observations")
     chosen = rng.choice(len(valid), size=cfg.n_obs, replace=False)
     ids = [valid[i] for i in chosen]
     it = np.asarray([z[0] for z in ids])
