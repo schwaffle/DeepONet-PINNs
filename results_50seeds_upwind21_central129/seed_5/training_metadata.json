@@ -1,0 +1,42 @@
+{
+  "seed": 5,
+  "model_choice": "both",
+  "u_scale_from_HF_training_observations_only": 0.18552681803703308,
+  "optimizer": "Adam + SciPy L-BFGS-B",
+  "adam_epochs": 2000,
+  "lbfgs_max_iter": 5000,
+  "collocation_points": 256,
+  "boundary_initial_points_per_epoch": 128,
+  "loss_weights": {
+    "lambda_obs": 10.0,
+    "lambda1_physics": 10.0,
+    "lambda2_lf": 1.0,
+    "lambda3_nonlinear_branch_reg": 1e-06,
+    "lambda4_lf_branch_reg": 1e-06,
+    "lambda5_ic": 20.0,
+    "lambda6_bc": 1.0
+  },
+  "HF_grid": [
+    129,
+    129
+  ],
+  "LF_grid": [
+    21,
+    21
+  ],
+  "HF_scheme": "central",
+  "LF_scheme": "upwind",
+  "n_HF_observations": 80,
+  "n_HF_test_points_disjoint": 349381,
+  "interior_test_metric_definition": "x,y strictly inside (0,1), t>0; excludes analytically prescribed BC and IC points",
+  "data_generation_timing": {
+    "lf_solver_seconds": 0.28917000006185845,
+    "hf_solver_seconds": 0.06542589998571202,
+    "dataset_generation_seconds": 3.6344617000140715
+  },
+  "test_targets_used_for_scaling_or_early_stopping": false,
+  "M1_composite_formula": "u_HF = F_linear + F_nonlinear",
+  "M1_loss": "lambda_obs*L_HFobs + Eq.(15): lambda1*L_physics + lambda2*L_LF + lambda3*R_nl + lambda4*R_LF + lambda5*L_IC + lambda6*L_BC",
+  "PI_DeepONet_reference": "Howard et al. 2023, JCP 493, 112462, Eq. (15); modified DeepONet based on Wang et al.",
+  "pinn_reference": "Raissi et al. 2019, JCP 378, 686-707; fully-connected tanh baseline adapted to 2D+time inverse source problem"
+}

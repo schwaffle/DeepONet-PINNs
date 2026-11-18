@@ -1,30 +1,30 @@
-# Implementation status — PINN-Raissi vs M1 PI-DeepONet
+# Статус реализации — PINN-Raissi vs M1 PI-DeepONet
 
-## What is included
+## Что включено
 
-- Main neural methods only: `PINN_Raissi` and `M1_PI_DeepONet`. MPINN-v2/M4 is absent from active models, training, CLI, inference, reports and 10-seed orchestration.
-- M1: LF modified DeepONet (source-function operator) + linear HF DeepONet correction + nonlinear HF modified DeepONet correction; `u_HF = F_l + F_nl`.
-- Modified DeepONet gates use `tanh`, matching the encoder/gating equations; do not interpret these as convex sigmoid gates.
-- PINN baseline: 3 physical inputs `(x,y,t)`, 8 hidden layers × 20 `tanh` units, scalar concentration output, truncated-normal Xavier-style initialization and zero biases; source parameters are trainable bounded variables in the PDE forcing.
-- Howard Eq. (15): six terms retained. A seventh explicit HF observation term is added for sparse inverse source identification and is also used by PINN.
-- Same noisy HF observations and same per-seed collocation / BC / IC random samples for both methods. LF pretraining and LF solver cost are separately reported for M1.
-- LF train/validation split by full source realization; true target source held out from LF parameter sweep.
-- `u_scale` is derived from noisy HF training observations only. Clean test values are never used for scaling, tuning, validation or early stopping.
-- Full clean test is all saved HF grid/time nodes excluding exact observation coordinate-time pairs. Additional interior-only metrics exclude the analytically imposed boundary and initial-condition nodes.
+- Основные нейросетевые методы: только `PINN_Raissi` и `M1_PI_DeepONet`. MPINN-v2/M4 исключены из активных моделей, процесса обучения, CLI, инференса, отчетов и оркестрации 10 сидов.
+- M1: LF modified DeepONet (оператор функции источника) + линейная HF-коррекция DeepONet + нелинейная HF-коррекция modified DeepONet; `u_HF = F_l + F_nl`.
+- Гейты Modified DeepONet используют `tanh`, что соответствует уравнениям кодировщика/гейтов; не следует интерпретировать их как выпуклые гейты на основе сигмоиды.
+- Базовая линия PINN: 3 физических входа `(x,y,t)`, 8 скрытых слоев по 20 `tanh`-нейронов, скалярный выход концентрации, инициализация в стиле Xavier с усеченным нормальным распределением и нулевыми смещениями (biases); параметры источника являются обучаемыми ограниченными переменными в правой части уравнения (PDE forcing).
+- Уравнение (15) Howard: сохранены шесть членов. Добавлен седьмой явный член HF-наблюдений для разреженной обратной идентификации источника, который также используется в PINN.
+- Одинаковые зашумленные HF-наблюдения и одинаковые случайные выборки collocation / BC / IC для каждого сида в обоих методах. Стоимость LF-предобучения и LF-солвера для M1 сообщается отдельно.
+- Разбиение LF train/validation производится по целым реализациям источника; истинный целевой источник исключен из LF-параметрического перебора.
+- `u_scale` вычисляется только на основе зашумленных тренировочных HF-наблюдений. Чистые тестовые значения никогда не используются для масштабирования, настройки гиперпараметров, валидации или ранней остановки.
+- Полный чистый тест включает все сохраненные узлы HF-сетки/времени, исключая точные пары координата-время наблюдений. Дополнительные метрики только для внутренней области (interior-only) исключают аналитически заданные узлы граничных и начальных условий.
 
-## Software checks actually executed
+## Выполненные программные проверки
 
-- `python -m py_compile *.py` — passed.
-- `python smoke_test.py --output smoke_test_outputs` — passed. The test uses a tiny 2-epoch Adam + 2-iteration L-BFGS-B run and checks: data split/leakage, coordinate normalization chain rule, PINN/M1 training path, PDE automatic differentiation, checkpoint save/load and inference.
-- `python run_exp1.py --seed 7 --model both --fast-dev --output cli_fast_dev_check_v3` — passed as a CLI smoke check. This also uses only 2 epochs / 2 L-BFGS-B iterations.
-- `python run_exp1.py --help` and `python run_10seeds.py --help` — passed.
+- `python -m py_compile *.py` — пройдено.
+- `python smoke_test.py --output smoke_test_outputs` — пройдено. Тест использует крошечный запуск (2 эпохи Adam + 2 итерации L-BFGS-B) и проверяет: разделение данных/отсутствие утечек, цепное правило нормализации координат, путь обучения PINN/M1, автоматическое дифференцирование PDE, сохранение/загрузку чекпоинтов и инференс.
+- `python run_exp1.py --seed 7 --model both --fast-dev --output cli_fast_dev_check_v3` — пройдено как CLI smoke-проверка. Это также использует только 2 эпохи / 2 итерации L-BFGS-B.
+- `python run_exp1.py --help` и `python run_10seeds.py --help` — пройдено.
 
-## What has NOT been executed
+## Что НЕ было выполнено
 
-- No full-epoch scientific run for seed 7.
-- No 10-seed series; no mean/std scientific table exists yet.
-- No convergence conclusion for Adam/L-BFGS-B; the fast-development checks intentionally stop at two L-BFGS-B iterations.
-- No WRF-Chem connection, WRF-Chem field mapping, or runtime validation. The HF source is still the local 129×129 central finite-difference solver.
-- No full cross-scheme study. The CLI can generate an LF-upwind / HF-central variant, but it must be treated as a separate experiment from the central/central resolution comparison.
+- Нет полного научного запуска на всех эпохах для сида 7.
+- Нет серии из 10 сидов; научной таблицы со средними значениями и стандартными отклонениями (mean/std) пока не существует.
+- Нет вывода о сходимости для Adam/L-BFGS-B; проверки быстрой разработки намеренно останавливаются после двух итераций L-BFGS-B.
+- Нет подключения к WRF-Chem, маппинга полей WRF-Chem или валидации времени выполнения. HF-источником по-прежнему является локальный конечно-разностный солвер 129×129 с центральными разностями.
+- Нет полного исследования cross-scheme (разных схем). CLI может генерировать вариант LF-upwind / HF-central, но он должен рассматриваться как отдельный эксперимент, отличный от сравнения разрешений central/central.
 
-All numbers in `smoke_test_outputs/` and `cli_fast_dev_check_v3/` are software-test artifacts only and must not be cited as scientific results.
+Все числа в `smoke_test_outputs/` и `cli_fast_dev_check_v3/` являются исключительно артефактами программных тестов и не должны цитироваться как научные результаты.

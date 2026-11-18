@@ -1,0 +1,92 @@
+{
+  "experiment": "Exp. 1: multi-fidelity source identification, 2-D advection-diffusion",
+  "seed": 5,
+  "theta_true": [
+    1.0,
+    0.36,
+    0.63
+  ],
+  "param_bounds": [
+    [
+      0.4,
+      1.6
+    ],
+    [
+      0.1,
+      0.9
+    ],
+    [
+      0.1,
+      0.9
+    ]
+  ],
+  "LF": {
+    "grid": [
+      21,
+      21
+    ],
+    "scheme": "upwind",
+    "n_realizations": 40,
+    "train_realizations": 32,
+    "validation_realizations": 8,
+    "points_per_realization": 384
+  },
+  "HF": {
+    "grid": [
+      129,
+      129
+    ],
+    "scheme": "central",
+    "n_observations": 80,
+    "noise_fraction_of_peak": 0.005,
+    "noise_std": 0.0019525256516084017
+  },
+  "test": {
+    "n_clean_points": 349381,
+    "n_full_HF_grid_time_points_before_exclusion": 349461,
+    "n_plot_points": 22869,
+    "observation_overlaps_removed": 80,
+    "test_coords_disjoint_from_observation_coords": true,
+    "plot_grid_is_visualisation_only": true
+  },
+  "operator_architecture": {
+    "branch_input": "Gaussian spatial source profile at fixed 12x12 sensors",
+    "trunk_input": "physical (x,y,t), normalized internally to [-1,1]",
+    "LF_feature_mesh": "11x11 spatial mesh x 4 times; 5x5x3 subset used in nonlinear branch"
+  },
+  "design": "LF upwind on 21x21; HF central on 129x129.",
+  "scheme_diagnostics": {
+    "dx_lf": 0.05,
+    "dx_hf": 0.0078125,
+    "target_LF_vs_HF": {
+      "MAE_on_LF_grid": 0.0014102522279914242,
+      "relative_L2_on_LF_grid": 0.11871894214498716,
+      "note": "Diagnostic-only target solve; not included in LF operator training or validation."
+    },
+    "resolution_only_Central21_vs_Central129": {
+      "MAE_on_LF_grid": 0.0003703450534864286,
+      "relative_L2_on_LF_grid": 0.03105624630658955,
+      "note": "Diagnostic-only Central 21x21 vs HF Central 129x129 resolution-control gap; not used in training."
+    },
+    "same_grid_LF_scheme_effect": {
+      "MAE_same_21x21_grid": 0.001406443657692665,
+      "relative_L2_same_21x21_grid": 0.1184470213423302,
+      "note": "Diagnostic-only comparison of Upwind and Central advection on identical 21x21 nodes; not used in training."
+    },
+    "LF_cell_Peclet_x": 8.749999999999998,
+    "LF_cell_Peclet_y": 3.75,
+    "HF_cell_Peclet_x": 1.3671874999999998,
+    "HF_cell_Peclet_y": 0.5859375,
+    "LF_upwind_modified_diffusion_x": 0.008749999999999999,
+    "LF_upwind_modified_diffusion_y": 0.00375,
+    "LF_upwind_effective_kappa_x": 0.009749999999999998,
+    "LF_upwind_effective_kappa_y": 0.00475,
+    "warning": "Central advection has no first-order upwind artificial diffusion, but it is not exact and may show dispersive/oscillatory error at high cell Peclet number. Upwind modified-equation diffusion is a leading-order estimate."
+  },
+  "timing": {
+    "lf_solver_seconds": 0.28917000006185845,
+    "hf_solver_seconds": 0.06542589998571202,
+    "dataset_generation_seconds": 3.6344617000140715
+  },
+  "note": "The target source theta_true is excluded from the LF function ensemble."
+}
